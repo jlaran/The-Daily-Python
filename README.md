@@ -1,5 +1,6 @@
 # 🗞️ The Daily Python
 
+
 > **365 ejercicios. Uno al día. De los fundamentos a pensar como un Senior.**
 
 Una plataforma de práctica diaria de Python con estética de periódico vintage, que corre **100% en tu navegador** — sin backend, sin registro, sin dependencias. Un solo archivo HTML.
