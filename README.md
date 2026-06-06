@@ -1,13 +1,14 @@
 # 🗞️ The Daily Python
 
-
 > **365 ejercicios. Uno al día. De los fundamentos a pensar como un Senior.**
 
 Una plataforma de práctica diaria de Python con estética de periódico vintage, que corre **100% en tu navegador** — sin backend, sin registro, sin dependencias. Un solo archivo HTML.
 
+[![Demo en vivo](https://img.shields.io/badge/▶_DEMO_EN_VIVO-project--c2it8.vercel.app-c0331b?style=for-the-badge)](https://project-c2it8.vercel.app/)
+
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Pyodide](https://img.shields.io/badge/Runtime-Pyodide_(WASM)-654FF0?logo=webassembly&logoColor=white)](https://pyodide.org/)
-[![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://project-c2it8.vercel.app/)
 [![Sin dependencias](https://img.shields.io/badge/Dependencias-0-1d6b4d)]()
 [![Licencia](https://img.shields.io/badge/Licencia-MIT-c0331b)]()
 
@@ -62,23 +63,11 @@ Cada día se desbloquea **un** ejercicio. Lo resuelves contra reloj, la platafor
 
 El día 365 es un proyecto final que combina metaclases, descriptors, event bus y command dispatch. Si llegas ahí, ya no eres la misma persona que el día 1. 🐍
 
-## 🚀 Despliegue
+## 🕹️ Pruébalo
 
-Es **un solo archivo estático**. No hay build, no hay framework, no hay `node_modules`.
+**→ [project-c2it8.vercel.app](https://project-c2it8.vercel.app/)** — abre, dale a *Start today's exercise* y a correr el reloj.
 
-**Vercel (recomendado)**
-
-```bash
-# con la CLI
-npm i -g vercel
-vercel          # dentro de la carpeta que contiene index.html
-```
-
-O simplemente arrastra la carpeta en [vercel.com/new](https://vercel.com/new).
-
-**Cualquier otra opción funciona igual:** GitHub Pages, Netlify, un `<doble clic>` en el archivo… es HTML plano.
-
-> **Nota:** la primera validación descarga Pyodide (~10 MB) desde el CDN de jsdelivr. Después queda cacheado.
+> La primera validación descarga el runtime de Python (~10 MB) desde CDN; después queda cacheado y todo es instantáneo.
 
 ## 🏗️ Cómo funciona por dentro
 
