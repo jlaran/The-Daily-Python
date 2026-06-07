@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>The Daily Python — 365 ejercicios, uno al día</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f8f4e8'/%3E%3Crect x='4' y='4' width='56' height='56' fill='none' stroke='%231c1813' stroke-width='5'/%3E%3Cline x1='12' y1='16' x2='52' y2='16' stroke='%231c1813' stroke-width='3'/%3E%3Ctext x='32' y='49' font-family='Arial Narrow,Arial,sans-serif' font-size='32' font-weight='900' text-anchor='middle' fill='%23c0331b'%3EPy%3C/text%3E%3C/svg%3E">
 <style>
@@ -88,6 +88,10 @@
   textarea.editor{width:100%;min-height:230px;background:var(--codebg);color:var(--codetext);border:2px solid var(--ink);
     border-radius:0;padding:15px;font-family:var(--mono);font-size:13.5px;line-height:1.55;resize:vertical;tab-size:4}
   textarea.editor:focus{outline:3px solid var(--accent);outline-offset:-1px}
+  /* iOS/Android hacen zoom automático al enfocar inputs con fuente <16px — esto lo evita sin bloquear el pinch-zoom */
+  @media (pointer:coarse){
+    textarea.editor,input,select{font-size:16px!important}
+  }
   .toolbar{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;align-items:center}
   .test-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;padding:9px 12px;background:var(--codebg);color:var(--codetext);
     margin-bottom:7px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;word-break:break-word}
