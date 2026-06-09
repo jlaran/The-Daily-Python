@@ -125,6 +125,25 @@
     border-top:3px solid var(--ink);padding-top:14px;letter-spacing:.04em}
   footer button{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12px;font-family:var(--mono)}
   .hidden{display:none!important}
+  /* sync */
+  .syncpill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .syncpill b{width:7px;height:7px;border-radius:50%;background:#b9b09a;display:inline-block}
+  .syncpill.on b{background:var(--green)}
+  .syncpill.saving b{background:var(--yellow);animation:pulse 1s infinite}
+  .syncpill.error b{background:var(--red)}
+  .modal-back{position:fixed;inset:0;z-index:50;background:rgba(28,24,19,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+  .modal{background:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 rgba(28,24,19,.9);max-width:460px;width:100%;padding:24px}
+  .modal h3{font-family:var(--cond);font-size:24px;text-transform:uppercase;margin-bottom:6px}
+  .modal p{font-size:14px;line-height:1.6;color:var(--text);margin-bottom:14px}
+  .modal .sub{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;border-top:1.5px solid var(--ink);padding-top:12px;margin-top:16px}
+  .codebox{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--codebg);color:var(--codetext);
+    border:2px solid var(--ink);padding:14px 16px;font-family:var(--mono);font-size:20px;letter-spacing:.1em;margin:10px 0 4px;word-break:break-all}
+  .modal input{width:100%;background:var(--paper);border:2px solid var(--ink);padding:11px 13px;font-family:var(--mono);
+    font-size:16px;letter-spacing:.08em;text-transform:uppercase;margin:8px 0;color:var(--ink)}
+  .modal input:focus{outline:3px solid var(--accent);outline-offset:-1px}
+  .modal-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .modal .x{float:right;cursor:pointer;font-family:var(--mono);font-size:18px;color:var(--muted);background:none;border:none;line-height:1}
+  .warnote{background:#f5e9c5;border:1.5px solid var(--ink);padding:9px 12px;font-size:12.5px;line-height:1.5;margin-top:10px}
 </style>
 </head>
 <body>
@@ -138,9 +157,12 @@
   </header>
   <main id="main"></main>
   <footer>
-    Runs Python in your browser via Pyodide (internet needed on first run) ·
+    <span class="syncpill" id="syncpill"><b></b><span id="synctext">Sync off</span></span> ·
+    <button onclick="openSyncModal()">Sync across devices</button> ·
     <button onclick="resetProgress()">Reset all progress</button>
+    <div style="margin-top:10px">Runs Python in your browser via Pyodide (internet needed on first run)</div>
   </footer>
+  <div id="modalRoot"></div>
 </div>
 
 <script>
@@ -157,7 +179,7 @@ function loadState(){
   localStorage.setItem(LS_KEY, JSON.stringify(s));
   return s;
 }
-function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); scheduleCloudPush(); }
 function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function daysBetween(a,b){ return Math.round((new Date(b+"T00:00:00") - new Date(a+"T00:00:00"))/86400000); }
 let state = loadState();
@@ -532,14 +554,141 @@ function markSolved(code){
 }
 
 function resetProgress(){
-  if(confirm("Reset ALL progress? Your streak, solved days and saved code will be erased.")){
+  if(confirm("Reset progress ON THIS DEVICE? Your streak, solved days and saved code will be erased locally. If you're synced, the cloud copy stays — re-enter your code to pull it back.")){
     localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(SYNC_KEY);
     state = loadState();
+    setSyncStatus("off");
     showHome();
   }
 }
 
+/* ---------- cross-device sync ---------- */
+const SYNC_KEY = "pydaily_sync";
+const SYNC_RE = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+function getSyncCode(){ return localStorage.getItem(SYNC_KEY) || ""; }
+function genSyncCode(){
+  const alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
+  const buf = crypto.getRandomValues(new Uint8Array(12));
+  let s = "";
+  for(let i=0;i<12;i++){ s += alpha[buf[i] % alpha.length]; if(i===3||i===7) s += "-"; }
+  return s;
+}
+function setSyncStatus(kind){ // off | on | saving | saved | error
+  const pill = el("syncpill"), txt = el("synctext");
+  if(!pill) return;
+  pill.className = "syncpill" + (kind==="off"?"":kind==="saving"?" saving":kind==="error"?" error":" on");
+  txt.textContent = kind==="off" ? "Sync off" : kind==="saving" ? "Saving…" : kind==="error" ? "Sync error" : "Synced";
+}
+function mergeState(a, b){
+  if(!a) return b; if(!b) return a;
+  const startDate = (a.startDate && b.startDate) ? (a.startDate < b.startDate ? a.startDate : b.startDate) : (a.startDate || b.startDate);
+  const completed = {};
+  const ca = a.completed||{}, cb = b.completed||{};
+  for(const k of new Set([...Object.keys(ca), ...Object.keys(cb)])) completed[k] = ca[k] || cb[k];
+  const hints = Object.assign({}, b.hints||{}, a.hints||{});
+  return { startDate, completed, hints };
+}
+let pushTimer = null;
+function scheduleCloudPush(){
+  if(!getSyncCode()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(cloudPush, 1200);
+}
+async function cloudPush(){
+  const code = getSyncCode(); if(!code) return;
+  try{
+    setSyncStatus("saving");
+    const r = await fetch("/api/sync?code="+encodeURIComponent(code), {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(state)
+    });
+    setSyncStatus(r.ok ? "saved" : "error");
+  }catch(e){ setSyncStatus("error"); }
+}
+async function cloudPull(code){
+  const r = await fetch("/api/sync?code="+encodeURIComponent(code));
+  if(!r.ok){ const j = await r.json().catch(()=>({})); throw new Error(j.error || ("HTTP "+r.status)); }
+  return (await r.json()).data; // object or null
+}
+async function initSync(){
+  const code = getSyncCode();
+  if(!code){ setSyncStatus("off"); return; }
+  setSyncStatus("saving");
+  try{
+    const cloud = await cloudPull(code);
+    if(cloud){ state = mergeState(state, cloud); localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    setSyncStatus("on");
+    cloudPush();        // push the merged result back up
+    showHome();         // re-render with merged progress
+  }catch(e){ setSyncStatus("error"); }
+}
+function closeSyncModal(){ el("modalRoot").innerHTML = ""; }
+function openSyncModal(){
+  const code = getSyncCode();
+  const root = el("modalRoot");
+  if(code){
+    root.innerHTML = `
+      <div class="modal-back" onclick="if(event.target===this)closeSyncModal()">
+        <div class="modal">
+          <button class="x" onclick="closeSyncModal()">✕</button>
+          <h3>This device is syncing</h3>
+          <p>Your progress is backed up automatically. To pick up where you left off on another device, open the site there, choose <b>Enter a code</b>, and type this:</p>
+          <div class="codebox"><span>${code}</span><button class="btn sm" onclick="copySync('${code}')">Copy</button></div>
+          <div class="warnote">Anyone with this code can read and edit your progress, so keep it private. It's not a password and can't be recovered — write it down somewhere safe.</div>
+          <div class="sub">Lost the code or want a fresh slot? <button class="btn ghost sm" style="margin-top:8px" onclick="unlinkSync()">Stop syncing on this device</button></div>
+        </div>
+      </div>`;
+  } else {
+    root.innerHTML = `
+      <div class="modal-back" onclick="if(event.target===this)closeSyncModal()">
+        <div class="modal">
+          <button class="x" onclick="closeSyncModal()">✕</button>
+          <h3>Sync across devices</h3>
+          <p>Right now your streak and solved days live only in this browser. Turn on sync to back them up and continue on your phone, laptop, anywhere.</p>
+          <div class="modal-actions">
+            <button class="btn" onclick="enableSync()">Create my sync code</button>
+          </div>
+          <div class="sub">Already started on another device?</div>
+          <input id="syncInput" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" spellcheck="false">
+          <div class="modal-actions">
+            <button class="btn ghost" onclick="linkSync()">Enter a code &amp; pull my progress</button>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+function copySync(code){ navigator.clipboard && navigator.clipboard.writeText(code); }
+function enableSync(){
+  const code = genSyncCode();
+  localStorage.setItem(SYNC_KEY, code);
+  setSyncStatus("on");
+  cloudPush();
+  openSyncModal(); // re-render modal in "active" state showing the code
+}
+async function linkSync(){
+  const input = el("syncInput");
+  const code = (input.value || "").trim().toUpperCase();
+  if(!SYNC_RE.test(code)){ alert("That code doesn't look right. Format: XXXX-XXXX-XXXX"); return; }
+  try{
+    const cloud = await cloudPull(code);
+    localStorage.setItem(SYNC_KEY, code);
+    if(cloud) state = mergeState(state, cloud);
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    setSyncStatus("on");
+    cloudPush();
+    closeSyncModal();
+    showHome();
+  }catch(e){ alert("Couldn't connect with that code. Check it and your internet, then try again."); }
+}
+function unlinkSync(){
+  if(!confirm("Stop syncing on this device? Your progress stays here, but new changes won't be backed up until you sync again.")) return;
+  localStorage.removeItem(SYNC_KEY);
+  setSyncStatus("off");
+  closeSyncModal();
+}
+
 showHome();
+initSync();
 </script>
 </body>
 </html>
